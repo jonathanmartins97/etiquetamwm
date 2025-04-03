@@ -1,25 +1,29 @@
 import streamlit as st
 import datetime
-import win32print
 import tempfile
 import os
-import win32api
 from PIL import Image, ImageDraw, ImageFont
 from pylibdmtx.pylibdmtx import encode
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import mm
 import sys
-# comando para rodar o programa ->  streamlit run etiquetamwm.py
+
+# Função para determinar se está em um sistema Windows
+def is_windows():
+    return sys.platform.startswith('win')
+
+# Função para obter impressoras no Windows
 def get_printers():
     try:
+        import win32print
         printers = [printer[2] for printer in win32print.EnumPrinters(
             win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS
         )]
         return printers if printers else None
-    except Exception as e:
-        st.error(f"Erro ao obter impressoras: {str(e)}")
+    except ImportError:
         return None
 
+# Função para selecionar impressora
 def select_printer():
     printers = get_printers()
     if not printers:
@@ -85,6 +89,7 @@ def create_label_image(data_fabricacao, part_number, nivel_liberacao, serial_fab
     img = img.rotate(90, expand=True)  # Rotaciona 90 graus no sentido horário
 
     return img
+
 def save_as_pdf(img, quantity):
     pdf_path = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False).name
     c = canvas.Canvas(pdf_path, pagesize=(150*mm, 100*mm))
@@ -101,11 +106,16 @@ def save_as_pdf(img, quantity):
     return pdf_path
 
 def print_pdf(pdf_path):
-    try:
-        win32api.ShellExecute(0, "print", pdf_path, None, ".", 0)
-        st.success("Etiqueta(s) enviada(s) para impressão!")
-    except Exception as e:
-        st.error(f"Erro ao imprimir: {str(e)}")
+    if is_windows():
+        try:
+            import win32api
+            win32api.ShellExecute(0, "print", pdf_path, None, ".", 0)
+            st.success("Etiqueta(s) enviada(s) para impressão!")
+        except Exception as e:
+            st.error(f"Erro ao imprimir: {str(e)}")
+    else:
+        st.warning("Impressão automática não suportada neste ambiente. Faça o download e imprima manualmente.")
+        st.download_button(label="Baixar PDF para Impressão", data=open(pdf_path, "rb").read(), file_name="etiqueta.pdf", mime="application/pdf")
 
 # Dicionário para preenchimento automático
 dados_mwm = {
